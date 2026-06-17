@@ -63,4 +63,25 @@ public class Quadtree<T> {
 
         divided = true;
     }
+
+    public List<QuadNode<T>> query(BoundingBox range, List<QuadNode<T>> found) {
+        if (!boundary.intersects(range)) {
+            return found;
+        }
+
+        for (QuadNode<T> node : points) {
+            if (range.contains(node.getPoint())) {
+                found.add(node);
+            }
+        }
+
+        if (divided) {
+            northWest.query(range, found);
+            northEast.query(range, found);
+            southWest.query(range, found);
+            southEast.query(range, found);
+        }
+
+        return found;
+    }
 }
