@@ -44,8 +44,8 @@ public class SpatialRoutingService<T> {
             try {
                 RouteMetrics metrics = routingManager.getRoute(origin, candidate.getPoint());
 
-                if (metrics.timeMillis() < bestTimeMs) {
-                    bestTimeMs = metrics.timeMillis();
+                if (metrics.timeSeconds() < bestTimeMs) {
+                    bestTimeMs = metrics.timeSeconds();
                     bestDestination = candidate;
                 }
             } catch (Exception e) {

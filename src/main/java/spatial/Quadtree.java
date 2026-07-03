@@ -30,14 +30,24 @@ public class Quadtree<T> {
             return false;
         }
 
+        if (divided) {
+            return (northWest.insert(node) || northEast.insert(node) ||
+                    southWest.insert(node) || southEast.insert(node));
+        }
+
         if (points.size() < CAPACITY) {
             points.add(node);
             return true;
         }
 
-        if (!divided) {
-            subdivide();
+        subdivide();
+
+        for (QuadNode<T> p : points) {
+            boolean reinserted = northWest.insert(p) || northEast.insert(p) ||
+                    southWest.insert(p) || southEast.insert(p);
         }
+
+        points.clear();
 
         return (northWest.insert(node) || northEast.insert(node) ||
                 southWest.insert(node) || southEast.insert(node));
@@ -84,4 +94,6 @@ public class Quadtree<T> {
 
         return found;
     }
+
+
 }
