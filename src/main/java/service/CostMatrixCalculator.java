@@ -16,7 +16,7 @@ public class CostMatrixCalculator {
     public long[][] calculateTimeMatrix(PrimitiveRouteData data, GraphHopperManager ghManager) {
         int n = data.size;
 
-        for (int i = 0; i < n; i++) 
+        for (int i = 0; i < n; i++) {
             Coordinates from = new Coordinates(data.latitudes[i], data.longitudes[i]);
 
             for (int j = 0; j < n; j++) {
@@ -34,7 +34,6 @@ public class CostMatrixCalculator {
                 }
             }
         }
-        
         return matrixPool;
     }
 }

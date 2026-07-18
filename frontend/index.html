@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VRP Engine - Spatial Visualizer</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #map { height: calc(100vh - 180px); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+
+    <header class="bg-slate-900 text-white p-6 shadow-md flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold tracking-tight">VRP Spatial Visualizer</h1>
+            <p class="text-slate-400 text-sm mt-1">Render engine for Zero-Allocation routing matrices</p>
+        </div>
+        
+        <div class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-inner">
+            <label for="fileInput" class="text-sm font-semibold text-slate-300">Upload GeoJSON route:</label>
+            <input type="file" id="fileInput" accept=".json, .geojson" class="block w-full text-sm text-slate-400
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-600 file:text-white
+                hover:file:bg-blue-500 transition cursor-pointer
+            "/>
+        </div>
+    </header>
+
+    <main class="p-6 flex-grow">
+        <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden relative">
+            <div id="map" class="w-full z-0"></div>
+            
+            <div id="infoPanel" class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-xl border border-gray-200 z-[1000] hidden">
+                <h3 class="font-bold text-gray-900 mb-2 border-b pb-1">Route Details</h3>
+                <p class="text-sm text-gray-600">Vehicle ID: <span id="lblVehicle" class="font-semibold text-blue-600">-</span></p>
+                <p class="text-sm text-gray-600">Total Nodes: <span id="lblNodes" class="font-semibold text-blue-600">-</span></p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const map = L.map('map').setView([43.7384, 7.4246], 14);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        let currentRouteLayer = null;
+
+        document.getElementById('fileInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const geojsonData = JSON.parse(e.target.result);
+                    
+                    if (currentRouteLayer) {
+                        map.removeLayer(currentRouteLayer);
+                    }
+
+                    const routeStyle = {
+                        "color": "#2563eb", // Blue
+                        "weight": 5,
+                        "opacity": 0.8
+                    };
+
+                    currentRouteLayer = L.geoJSON(geojsonData, {
+                        style: routeStyle,
+                        onEachFeature: function (feature, layer) {
+                            if (feature.geometry.coordinates.length > 0) {
+                                const startCoords = feature.geometry.coordinates[0];
+                                // Remember GeoJSON is [lon, lat], Leaflet wants [lat, lon]
+                                L.marker([startCoords[1], startCoords[0]]).addTo(map)
+                                    .bindPopup("<b>Depot (Start)</b>");
+                            }
+                        }
+                    }).addTo(map);
+
+                    map.fitBounds(currentRouteLayer.getBounds(), { padding: [50, 50] });
+
+                    document.getElementById('infoPanel').classList.remove('hidden');
+                    document.getElementById('lblVehicle').innerText = geojsonData.properties?.vehicle || 'Unknown';
+                    document.getElementById('lblNodes').innerText = geojsonData.geometry?.coordinates?.length || '0';
+
+                } catch (error) {
+                    alert("Error parsing JSON file. Please ensure it's a valid GeoJSON output from your VRP engine.");
+                    console.error("JSON Parse Error:", error);
+                }
+            };
+            
+            reader.readAsText(file);
+        });
+    </script>
+</body>
+</html>
