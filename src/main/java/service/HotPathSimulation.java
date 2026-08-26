@@ -14,7 +14,7 @@ public class HotPathSimulation {
                 Path.of("graphhopper-cache")
         );
 
-        int N = 200;
+        int N = 100;
         System.out.println("2. Preparing DOD flattened data (" + N + " packages)...");
         PrimitiveRouteData data = new PrimitiveRouteData(N);
         for (int i = 0; i < N; i++) {
