@@ -49,7 +49,7 @@ public class SpatialRoutingService<T> {
                     bestDestination = candidate;
                 }
             } catch (Exception e) {
-                System.err.println("No se pudo calcular la ruta al candidato: " + e.getMessage());
+                System.err.println("Cannot be calculated route to candidate: " + e.getMessage());
             }
         }
 

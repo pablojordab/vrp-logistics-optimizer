@@ -16,7 +16,7 @@ class ClusteringServiceTest {
     @Test
     void testAgentEstimationAndClustering() {
 
-        TimeWindow dummyWindow = new TimeWindow(8, 18); // Asumo de 8:00 a 18:00
+        TimeWindow dummyWindow = new TimeWindow(8, 18); 
         Coordinates depot = new Coordinates(0.0, 0.0);
 
         Vehicle van = new Vehicle("V-001", 1000, depot, dummyWindow);
@@ -31,21 +31,21 @@ class ClusteringServiceTest {
         AgentEstimatorService estimator = new AgentEstimatorService();
         int requiredVans = estimator.estimateRequiredAgents(todayShipments, van);
 
-        assertEquals(2, requiredVans, "Deberíamos necesitar exactamente 2 furgonetas para 1400kg");
+        assertEquals(2, requiredVans, "We should need exactly 2 trucks for 1400kg");
 
         ClusteringService clusterer = new ClusteringService();
         List<ClusteringService.Cluster> barrios = clusterer.createClusters(todayShipments, requiredVans, van);
 
-        assertEquals(2, barrios.size(), "Se deberían haber creado exactamente 2 barrios");
+        assertEquals(2, barrios.size(), "Exactly 2 neighborhoods should have been created");
 
         for (ClusteringService.Cluster barrio : barrios) {
             assertTrue(barrio.currentLoad <= van.capacity(),
-                    "¡Un barrio ha superado la capacidad de la furgoneta! Carga: " + barrio.currentLoad);
+                    "A neighborhood has exceeded the van's capacity! Load: " + barrio.currentLoad);
 
-            assertFalse(barrio.assignedShipments.isEmpty(), "Hay un barrio vacío sin paquetes");
+            assertFalse(barrio.assignedShipments.isEmpty(), "There is an empty neighborhood with no packages.");
         }
 
         int totalAssigned = barrios.stream().mapToInt(b -> b.assignedShipments.size()).sum();
-        assertEquals(4, totalAssigned, "Todos los 4 paquetes deben estar asignados a algún barrio");
+        assertEquals(4, totalAssigned, "All 4 packages must be assigned to a neighborhood");
     }
 }

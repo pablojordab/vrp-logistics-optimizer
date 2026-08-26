@@ -22,7 +22,6 @@ public class GraphHopperManager {
         this.hopper.setOSMFile(osmFilePath.toString());
         this.hopper.setGraphHopperLocation(cacheDirectory.toString());
 
-        // FIX: GraphHopper 8.0 requiere CustomModel para evitar calles prohibidas.
         this.hopper.setProfiles(new Profile("car")
                 .setVehicle("car")
                 .setWeighting("custom")

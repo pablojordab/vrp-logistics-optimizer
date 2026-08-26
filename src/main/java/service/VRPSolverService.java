@@ -44,7 +44,7 @@ public class VRPSolverService {
         Assignment solution = routing.solveWithParameters(searchParameters);
 
         if (solution == null) {
-            throw new RuntimeException("OR-Tools no pudo encontrar una solución válida.");
+            throw new RuntimeException("OR-Tools could not find a valid solution");
         }
 
         return extractRouteCoordinates(manager, routing, solution, data);

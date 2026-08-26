@@ -19,7 +19,7 @@ public class AgentEstimatorService {
         double vehicleCapacity = fleetProfile.capacity();
 
         if (vehicleCapacity <= 0) {
-            throw new IllegalArgumentException("La capacidad del vehículo debe ser mayor que 0");
+            throw new IllegalArgumentException("The vehicle's capacity must be above 0");
         }
 
         double requiredVehicles = totalDemand / vehicleCapacity;
