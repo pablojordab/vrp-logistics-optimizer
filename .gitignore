@@ -1,39 +1,42 @@
+# ==========================================
+# 1. Project Specific (VRP Engine & Cache)
+# ==========================================
+# GraphHopper road network binary graph cache
+graphhopper-cache/
+
+# Simulation runtime output files and logs
+route_monaco_*.json
+*.log
+
+# ==========================================
+# 2. Build Tools (Maven)
+# ==========================================
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-.kotlin
 
-### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+# ==========================================
+# 3. IDEs & Editors
+# ==========================================
+# IntelliJ IDEA
+.idea/
 *.iws
 *.iml
 *.ipr
 
-### Eclipse ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
+# Visual Studio Code
 .vscode/
 
-### Mac OS ###
+# Eclipse / NetBeans
+.project
+.classpath
+.settings/
+build/
+nbproject/private/
+
+# ==========================================
+# 4. OS Specific
+# ==========================================
 .DS_Store
+Thumbs.db
