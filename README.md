@@ -1,40 +1,101 @@
-#  VRP Enterprise Logistics Engine
+# VRP Enterprise Logistics Engine
 
-A high-performance backend routing engine built in **Java 17** to solve the Capacitated Vehicle Routing Problem (CVRP). It combines real-world geospatial data, memory optimization techniques, and advanced metaheuristics.
+[![Java 17](https://img.shields.io/badge/Java-17%2B-ED8B00?style=flat&logo=openjdk&logoColor=white)](https://www.oracle.com/java/)
+[![Maven](https://img.shields.io/badge/Build-Maven-C71A36?style=flat&logo=apachemaven&logoColor=white)](https://maven.apache.org/)
+[![OR-Tools](https://img.shields.io/badge/Solver-Google%20OR--Tools-4285F4?style=flat&logo=google&logoColor=white)](https://developers.google.com/optimization)
+[![GraphHopper](https://img.shields.io/badge/Routing-GraphHopper%20Core-00B0FF?style=flat)](https://www.graphhopper.com/)
 
-##  Core Architecture
+A high-throughput backend routing engine built in **Java 17** designed to solve the **Capacitated Vehicle Routing Problem (CVRP)** at enterprise scale. The system integrates real-world OpenStreetMap road networks, low-latency spatial pruning algorithms, zero-allocation memory patterns, and combinatorial optimization metaheuristics.
 
-This engine is built with a focus on high throughput and low-latency processing, utilizing industrial-grade libraries and custom spatial data structures.
+---
 
-### 1. Spatial Intelligence (Quadtrees)
-Implements a custom **Quadtree** for $O(\log N)$ spatial range queries. This allows the engine to perform massive location-based filtering instantly.
+## Core Architecture
 
-### 2. Data-Oriented Design (DOD) & Zero-Allocation
-To avoid GC (Garbage Collector) pauses during real-time route calculations, the engine utilizes:
+The platform executes a multi-stage optimization pipeline combining spatial indexing, real-world road graph extraction, and combinatorial optimization:
 
-* **Primitive Flattening:** Translates complex `Shipment` objects into contiguous primitive arrays.
-* **Object Pooling:** Recycles matrix structures to eliminate memory allocation overhead on the "Hot Path".
+```
+[ OSM Road Network (.osm.pbf) ] ──> [ GraphHopper Graph Engine ]
+                                                │
+                                                ▼ (Distance / Time Matrix)
+[ Delivery Coordinates ] ──> [ Spatial Quadtree ] ──> [ Two-Phase Solver (OR-Tools) ] ──> [ GeoJSON Route Output ]
+                               (O(log N) Pruning)       1. Greedy (Cheapest Arc)
+                                                        2. Guided Local Search (GLS)
+```
 
-### 3. Advanced Optimization (Google OR-Tools)
-* Integrates Google's C++ native binary solvers via JNI.
-* Utilizes *Tabu Search* and *Guided Local Search* metaheuristics.
+### 1. Spatial Intelligence and Pruning (Quadtree)
+* Custom hierarchical **QuadTree** data structure for spatial point indexing.
+* Reduces point lookup and bounding-box spatial range queries to $\mathcal{O}(\log N)$, eliminating spatial bottlenecks prior to cost matrix computation.
 
-##  Tech Stack
-* **Language:** Java 17
-* **Optimization:** Google OR-Tools
-* **Routing/GIS:** GraphHopper Core API
-* **Frontend:** HTML5, Tailwind CSS, Leaflet.js
+### 2. High-Precision Road Routing (GraphHopper Core API)
+* Consumes raw OpenStreetMap Protocolbuffer data (`monaco-latest.osm.pbf`) into an in-memory directed graph.
+* Computes exact real-world driving times and turn-by-turn routing distances instead of Euclidean approximations.
 
-##  How to Run
-* Ensure you have Java 17 and Maven installed.
-* Place monaco-latest.osm.pbf in src/main/resources/.
-* Build and execute:
-       `mvn clean install
-       mvn exec:java`
+### 3. Two-Phase Optimization Pipeline (Google OR-Tools via JNI)
+* **Phase 1 — Greedy Construction (`PATH_CHEAPEST_ARC`):** Rapidly constructs a feasible baseline solution by iteratively connecting the lowest-cost reachable nodes.
+* **Phase 2 — Metaheuristic Exploration (`GUIDED_LOCAL_SEARCH`):** Employs Guided Local Search (GLS) to systematically escape local minima. When the underlying local search plateaus, GLS dynamically penalizes expensive solution features to force diversification toward the global optimum.
 
-* The engine will generate route_monaco_V-001.json.
-* Open index.html in your browser and upload the generated JSON.
+### 4. Data-Oriented Design (DOD) and Zero-Allocation Hot Path
+* **Primitive Flattening:** Complex entities are flattened into contiguous primitive arrays (`int[]`, `double[]`) to maximize CPU cache locality.
+* **Object Pooling:** Cost matrix instances and temporary spatial structures are recycled to suppress garbage collection (GC) pressure during real-time route calculations.
 
-Developed by Pablo Jorda | Software Engineering Student (Computing & AI)
+---
 
+## Tech Stack
 
+* **Core Language:** Java 17 (LTS)
+* **Optimization Engine:** Google OR-Tools (Native C++ bindings via JNI)
+* **Geospatial and Road Engine:** GraphHopper Core
+* **Spatial Structures:** Custom 2D Spatial Quadtree
+* **Build System:** Apache Maven
+* **Interactive Frontend:** HTML5, Tailwind CSS, Leaflet.js
+
+---
+
+## Repository Layout
+
+```text
+├── frontend/
+│   └── index.html               # Leaflet.js route visualizer
+├── src/
+│   ├── main/
+│   │   ├── java/                # Routing engine, solver services, spatial quadtree
+│   │   └── resources/
+│   │       └── monaco-latest.osm.pbf  # Real-world OpenStreetMap extract
+│   └── test/
+│       └── java/                # Unit test suite (GraphHopper and VRP services)
+├── .gitignore                   # Excludes runtime caches and simulation outputs
+├── pom.xml                      # Maven dependencies and build lifecycle
+└── README.md
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+* **Java Development Kit (JDK) 17** or higher.
+* **Apache Maven 3.8+**.
+
+### 1. Build and Compile
+```bash
+mvn clean compile
+```
+
+### 2. Run the Optimization Engine
+```bash
+mvn exec:java -Dexec.mainClass="main.Main"
+```
+*On initial startup, GraphHopper parses the road network and generates a local index in `graphhopper-cache/` (excluded by Git). The solver then calculates optimal fleet assignments and outputs `route_monaco_fleet.json`.*
+
+### 3. Visualize Fleet Routes
+1. Open `frontend/index.html` in a web browser.
+2. Upload the generated `route_monaco_fleet.json` file.
+3. Inspect turn-by-turn paths, vehicle assignments, and delivery stops on the map.
+
+---
+
+## Author
+
+**Pablo Jorda**  
+Software Engineering Student (Computing and AI)  
+GitHub: [@pablojordab](https://github.com/pablojordab)
