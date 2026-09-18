@@ -13,6 +13,7 @@ import domain.Coordinates;
 import domain.PrimitiveRouteData;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class VRPSolverService {
@@ -22,6 +23,14 @@ public class VRPSolverService {
     }
 
     public List<Coordinates> solveOptimalRoute(PrimitiveRouteData data, long[][] timeMatrix) {
+        if (data == null || data.size == 0) {
+            return Collections.emptyList();
+        }
+
+        if (data.size == 1) {
+            return List.of(new Coordinates(data.latitudes[0], data.longitudes[0]));
+        }
+
         RoutingIndexManager manager = new RoutingIndexManager(data.size, 1, 0);
         RoutingModel routing = new RoutingModel(manager);
 
@@ -44,7 +53,7 @@ public class VRPSolverService {
         Assignment solution = routing.solveWithParameters(searchParameters);
 
         if (solution == null) {
-            throw new RuntimeException("OR-Tools could not find a valid solution");
+            throw new IllegalStateException("OR-Tools could not find a valid route. Check connectivity in the road network.");
         }
 
         return extractRouteCoordinates(manager, routing, solution, data);

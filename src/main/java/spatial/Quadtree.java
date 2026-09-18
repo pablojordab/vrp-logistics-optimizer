@@ -8,9 +8,11 @@ import java.util.List;
 public class Quadtree<T> {
 
     private static final int CAPACITY = 4;
+    private static final int MAX_DEPTH = 10;
 
     private final BoundingBox boundary;
     private final List<QuadNode<T>> points;
+    private final int depth;
 
     private Quadtree<T> northWest;
     private Quadtree<T> northEast;
@@ -20,7 +22,12 @@ public class Quadtree<T> {
     private boolean divided;
 
     public Quadtree(BoundingBox boundary) {
+        this(boundary, 0);
+    }
+
+    private Quadtree(BoundingBox boundary, int depth) {
         this.boundary = boundary;
+        this.depth = depth;
         this.points = new ArrayList<>(CAPACITY);
         this.divided = false;
     }
@@ -35,19 +42,12 @@ public class Quadtree<T> {
                     southWest.insert(node) || southEast.insert(node));
         }
 
-        if (points.size() < CAPACITY) {
+        if (points.size() < CAPACITY || depth >= MAX_DEPTH) {
             points.add(node);
             return true;
         }
 
         subdivide();
-
-        for (QuadNode<T> p : points) {
-            boolean reinserted = northWest.insert(p) || northEast.insert(p) ||
-                    southWest.insert(p) || southEast.insert(p);
-        }
-
-        points.clear();
 
         return (northWest.insert(node) || northEast.insert(node) ||
                 southWest.insert(node) || southEast.insert(node));
@@ -59,19 +59,22 @@ public class Quadtree<T> {
         double w = (boundary.maxLon() - boundary.minLon()) / 2.0;
         double h = (boundary.maxLat() - boundary.minLat()) / 2.0;
 
-        BoundingBox nwBoundary = new BoundingBox(y + h, x, boundary.maxLat(), x + w);
-        northWest = new Quadtree<>(nwBoundary);
-
-        BoundingBox neBoundary = new BoundingBox(y + h, x + w, boundary.maxLat(), boundary.maxLon());
-        northEast = new Quadtree<>(neBoundary);
-
-        BoundingBox swBoundary = new BoundingBox(y, x, y + h, x + w);
-        southWest = new Quadtree<>(swBoundary);
-
-        BoundingBox seBoundary = new BoundingBox(y, x + w, y + h, boundary.maxLon());
-        southEast = new Quadtree<>(seBoundary);
+        int nextDepth = depth + 1;
+        northWest = new Quadtree<>(new BoundingBox(y + h, x, boundary.maxLat(), x + w), nextDepth);
+        northEast = new Quadtree<>(new BoundingBox(y + h, x + w, boundary.maxLat(), boundary.maxLon()), nextDepth);
+        southWest = new Quadtree<>(new BoundingBox(y, x, y + h, x + w), nextDepth);
+        southEast = new Quadtree<>(new BoundingBox(y, x + w, y + h, boundary.maxLon()), nextDepth);
 
         divided = true;
+
+        for (QuadNode<T> p : points) {
+            northWest.insert(p);
+            northEast.insert(p);
+            southWest.insert(p);
+            southEast.insert(p);
+        }
+
+        points.clear();
     }
 
     public List<QuadNode<T>> query(BoundingBox range, List<QuadNode<T>> found) {
@@ -94,6 +97,4 @@ public class Quadtree<T> {
 
         return found;
     }
-
-
 }

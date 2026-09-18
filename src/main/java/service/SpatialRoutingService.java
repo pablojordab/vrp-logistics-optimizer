@@ -10,7 +10,6 @@ import spatial.Quadtree;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public class SpatialRoutingService<T> {
 
     private final Quadtree<T> quadtree;
@@ -38,18 +37,18 @@ public class SpatialRoutingService<T> {
         }
 
         QuadNode<T> bestDestination = null;
-        long bestTimeMs = Long.MAX_VALUE;
+        long bestTimeSeconds = Long.MAX_VALUE;
 
         for (QuadNode<T> candidate : candidates) {
             try {
                 RouteMetrics metrics = routingManager.getRoute(origin, candidate.getPoint());
 
-                if (metrics.timeSeconds() < bestTimeMs) {
-                    bestTimeMs = metrics.timeSeconds();
+                if (metrics.timeSeconds() < bestTimeSeconds) {
+                    bestTimeSeconds = metrics.timeSeconds();
                     bestDestination = candidate;
                 }
             } catch (Exception e) {
-                System.err.println("Cannot be calculated route to candidate: " + e.getMessage());
+                System.err.println("Cannot calculate route to candidate: " + e.getMessage());
             }
         }
 

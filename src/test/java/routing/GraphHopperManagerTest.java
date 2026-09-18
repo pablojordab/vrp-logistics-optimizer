@@ -29,6 +29,7 @@ class GraphHopperManagerTest {
         manager.close();
     }
 
+    @Test
     void testRealRouteCalculationsBetweenPoints(@TempDir Path tempCacheDir){
         URL mapUrl = getClass().getClassLoader().getResource("monaco-latest.osm.pbf");
         Path osmPath = assertDoesNotThrow(() -> Paths.get(mapUrl.toURI()));

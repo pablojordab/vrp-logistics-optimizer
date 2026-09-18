@@ -2,37 +2,53 @@ package service;
 
 import domain.Coordinates;
 import java.util.List;
+import java.util.Map;
 
 public class GeoJsonSerializer {
 
-    public static String routeToGeoJson(List<Coordinates> route, String vehicleId) {
-        if (route == null || route.isEmpty()) {
-            return "{}";
-        }
-
+    public static String fleetToGeoJson(Map<String, List<Coordinates>> vehicleRoutes) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
-        sb.append("  \"type\": \"Feature\",\n");
-        sb.append("  \"properties\": {\n");
-        sb.append("    \"vehicle\": \"").append(vehicleId).append("\"\n");
-        sb.append("  },\n");
-        sb.append("  \"geometry\": {\n");
-        sb.append("    \"type\": \"LineString\",\n");
-        sb.append("    \"coordinates\": [\n");
+        sb.append("  \"type\": \"FeatureCollection\",\n");
+        sb.append("  \"features\": [\n");
 
-        for (int i = 0; i < route.size(); i++) {
-            Coordinates c = route.get(i);
-            sb.append("      [").append(c.lon()).append(", ").append(c.lat()).append("]");
-            
-            if (i < route.size() - 1) {
+        int vehicleIndex = 0;
+        int totalVehicles = vehicleRoutes.size();
+
+        for (Map.Entry<String, List<Coordinates>> entry : vehicleRoutes.entrySet()) {
+            String vehicleId = entry.getKey();
+            List<Coordinates> route = entry.getValue();
+
+            sb.append("    {\n");
+            sb.append("      \"type\": \"Feature\",\n");
+            sb.append("      \"properties\": {\n");
+            sb.append("        \"vehicle\": \"").append(vehicleId).append("\"\n");
+            sb.append("      },\n");
+            sb.append("      \"geometry\": {\n");
+            sb.append("        \"type\": \"LineString\",\n");
+            sb.append("        \"coordinates\": [\n");
+
+            for (int i = 0; i < route.size(); i++) {
+                Coordinates c = route.get(i);
+                sb.append("          [").append(c.lon()).append(", ").append(c.lat()).append("]");
+                if (i < route.size() - 1) {
+                    sb.append(",");
+                }
+                sb.append("\n");
+            }
+
+            sb.append("        ]\n");
+            sb.append("      }\n");
+            sb.append("    }");
+
+            if (++vehicleIndex < totalVehicles) {
                 sb.append(",");
             }
             sb.append("\n");
         }
 
-        sb.append("    ]\n");
-        sb.append("  }\n");
-        sb.append("}");
+        sb.append("  ]\n");
+        sb.append("}\n");
 
         return sb.toString();
     }

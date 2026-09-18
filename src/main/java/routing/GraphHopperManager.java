@@ -11,6 +11,8 @@ import domain.Coordinates;
 import domain.RouteMetrics;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 public class GraphHopperManager {
 
@@ -31,9 +33,13 @@ public class GraphHopperManager {
     }
 
     public RouteMetrics getRoute(Coordinates from, Coordinates to) {
+        return getRoute(from.lat(), from.lon(), to.lat(), to.lon());
+    }
+
+    public RouteMetrics getRoute(double fromLat, double fromLon, double toLat, double toLon) {
         GHRequest request = new GHRequest(
-                from.lat(), from.lon(),
-                to.lat(), to.lon()
+                fromLat, fromLon,
+                toLat, toLon
         ).setProfile("car");
 
         GHResponse response = hopper.route(request);
@@ -50,7 +56,26 @@ public class GraphHopperManager {
         return new RouteMetrics(distanceInMeters, timeInSeconds);
     }
 
-    public void close(){
+    public List<Coordinates> getDetailedPathPoints(Coordinates from, Coordinates to) {
+        GHRequest request = new GHRequest(from.lat(), from.lon(), to.lat(), to.lon()).setProfile("car");
+        GHResponse response = hopper.route(request);
+
+        if (response.hasErrors()) {
+            return List.of(from, to);
+        }
+
+        ResponsePath path = response.getBest();
+        com.graphhopper.util.PointList points = path.getPoints();
+        List<Coordinates> coordinates = new ArrayList<>(points.size());
+
+        for (int i = 0; i < points.size(); i++) {
+            coordinates.add(new Coordinates(points.getLat(i), points.getLon(i)));
+        }
+
+        return coordinates;
+    }
+    
+    public void close() {
         this.hopper.close();
     }
 }
