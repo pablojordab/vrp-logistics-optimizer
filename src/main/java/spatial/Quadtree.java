@@ -33,62 +33,210 @@ public class Quadtree<T> {
     }
 
     public boolean insert(QuadNode<T> node) {
-        if (!boundary.contains(node.getPoint())) {
+
+        if (node == null || !boundary.contains(node.getPoint())) {
             return false;
         }
 
-        if (divided) {
-            return (northWest.insert(node) || northEast.insert(node) ||
-                    southWest.insert(node) || southEast.insert(node));
-        }
-
-        if (points.size() < CAPACITY || depth >= MAX_DEPTH) {
+        /*
+         * Leaf with available capacity.
+         */
+        if (!divided && points.size() < CAPACITY) {
             points.add(node);
             return true;
         }
 
-        subdivide();
+        /*
+         * Maximum depth reached.
+         *
+         * We deliberately allow the bucket to grow here.
+         * This prevents pathological recursion with very close
+         * or identical coordinates.
+         */
+        if (!divided && depth >= MAX_DEPTH) {
+            points.add(node);
+            return true;
+        }
 
-        return (northWest.insert(node) || northEast.insert(node) ||
-                southWest.insert(node) || southEast.insert(node));
+        /*
+         * Subdivide the current region.
+         */
+        if (!divided) {
+            subdivide();
+        }
+
+        /*
+         * Insert into exactly ONE child.
+         */
+        return insertIntoChild(node);
+    }
+
+    private boolean insertIntoChild(QuadNode<T> node) {
+
+        double lat = node.getPoint().lat();
+        double lon = node.getPoint().lon();
+
+        double midLat =
+                (boundary.minLat() + boundary.maxLat()) / 2.0;
+
+        double midLon =
+                (boundary.minLon() + boundary.maxLon()) / 2.0;
+
+        /*
+         * We use >= for the north/east side.
+         *
+         * This gives every point exactly one destination,
+         * including points located exactly on a subdivision line.
+         */
+        if (lat >= midLat) {
+
+            if (lon < midLon) {
+                return northWest.insert(node);
+            } else {
+                return northEast.insert(node);
+            }
+
+        } else {
+
+            if (lon < midLon) {
+                return southWest.insert(node);
+            } else {
+                return southEast.insert(node);
+            }
+        }
     }
 
     private void subdivide() {
-        double x = boundary.minLon();
-        double y = boundary.minLat();
-        double w = (boundary.maxLon() - boundary.minLon()) / 2.0;
-        double h = (boundary.maxLat() - boundary.minLat()) / 2.0;
+
+        double minLat = boundary.minLat();
+        double maxLat = boundary.maxLat();
+
+        double minLon = boundary.minLon();
+        double maxLon = boundary.maxLon();
+
+        double midLat =
+                (minLat + maxLat) / 2.0;
+
+        double midLon =
+                (minLon + maxLon) / 2.0;
 
         int nextDepth = depth + 1;
-        northWest = new Quadtree<>(new BoundingBox(y + h, x, boundary.maxLat(), x + w), nextDepth);
-        northEast = new Quadtree<>(new BoundingBox(y + h, x + w, boundary.maxLat(), boundary.maxLon()), nextDepth);
-        southWest = new Quadtree<>(new BoundingBox(y, x, y + h, x + w), nextDepth);
-        southEast = new Quadtree<>(new BoundingBox(y, x + w, y + h, boundary.maxLon()), nextDepth);
+
+        /*
+         * North-West
+         */
+        northWest =
+                new Quadtree<>(
+                        new BoundingBox(
+                                midLat,
+                                minLon,
+                                maxLat,
+                                midLon
+                        ),
+                        nextDepth
+                );
+
+        /*
+         * North-East
+         */
+        northEast =
+                new Quadtree<>(
+                        new BoundingBox(
+                                midLat,
+                                midLon,
+                                maxLat,
+                                maxLon
+                        ),
+                        nextDepth
+                );
+
+        /*
+         * South-West
+         */
+        southWest =
+                new Quadtree<>(
+                        new BoundingBox(
+                                minLat,
+                                minLon,
+                                midLat,
+                                midLon
+                        ),
+                        nextDepth
+                );
+
+        /*
+         * South-East
+         */
+        southEast =
+                new Quadtree<>(
+                        new BoundingBox(
+                                minLat,
+                                midLon,
+                                midLat,
+                                maxLon
+                        ),
+                        nextDepth
+                );
 
         divided = true;
 
-        for (QuadNode<T> p : points) {
-            northWest.insert(p);
-            northEast.insert(p);
-            southWest.insert(p);
-            southEast.insert(p);
-        }
+        /*
+         * Reinsert existing points.
+         *
+         * IMPORTANT:
+         * Each point is inserted into exactly ONE child.
+         */
+        List<QuadNode<T>> existingPoints =
+                new ArrayList<>(points);
 
         points.clear();
+
+        for (QuadNode<T> point : existingPoints) {
+            insertIntoChild(point);
+        }
     }
 
-    public List<QuadNode<T>> query(BoundingBox range, List<QuadNode<T>> found) {
+    public List<QuadNode<T>> query(
+            BoundingBox range,
+            List<QuadNode<T>> found) {
+
+        if (range == null) {
+            throw new IllegalArgumentException(
+                    "Query range cannot be null."
+            );
+        }
+
+        if (found == null) {
+            throw new IllegalArgumentException(
+                    "Result list cannot be null."
+            );
+        }
+
+        /*
+         * No intersection -> entire subtree can be ignored.
+         */
         if (!boundary.intersects(range)) {
             return found;
         }
 
+        /*
+         * Check points stored at this node.
+         *
+         * Normally this happens only for leaves, or when
+         * MAX_DEPTH was reached.
+         */
         for (QuadNode<T> node : points) {
+
             if (range.contains(node.getPoint())) {
                 found.add(node);
             }
         }
 
+        /*
+         * Search children only if this node has been subdivided.
+         */
         if (divided) {
+
             northWest.query(range, found);
             northEast.query(range, found);
             southWest.query(range, found);
@@ -96,5 +244,15 @@ public class Quadtree<T> {
         }
 
         return found;
+    }
+
+    /**
+     * Convenience overload.
+     */
+    public List<QuadNode<T>> query(BoundingBox range) {
+        return query(
+                range,
+                new ArrayList<>()
+        );
     }
 }

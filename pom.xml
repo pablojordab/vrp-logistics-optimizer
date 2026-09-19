@@ -33,12 +33,12 @@
         <dependency>
             <groupId>com.google.ortools</groupId>
             <artifactId>ortools-java</artifactId>
-            <version>9.10.4067</version>
+            <version>9.8.3296</version>
         </dependency>
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>3.25.3</version>
+            <version>3.25.5</version>
         </dependency>
     </dependencies>
 

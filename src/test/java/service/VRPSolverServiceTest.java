@@ -14,27 +14,159 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class VRPSolverServiceTest {
 
     @Test
-    void testSolverWithSyntheticMatrix() {
-        Coordinates depot = new Coordinates(43.7384, 7.4246);
+    void testSolverRespectsDifferentTimeWindows() {
+
+        Coordinates depot =
+                new Coordinates(43.7384, 7.4246);
+
+        /*
+         * Three shipments with different time windows.
+         *
+         * S1 -> 08:00 - 08:20
+         * S2 -> 08:40 - 09:00
+         * S3 -> 09:20 - 09:40
+         */
         List<Shipment> shipments = List.of(
-                new Shipment("S1", new Coordinates(43.7400, 7.4250), 5, new TimeWindow(0, 100)),
-                new Shipment("S2", new Coordinates(43.7420, 7.4300), 10, new TimeWindow(0, 100))
+
+                new Shipment(
+                        "S1",
+                        new Coordinates(43.7400, 7.4250),
+                        5,
+                        new TimeWindow(
+                                8 * 60 * 60,
+                                8 * 60 * 60 + 20 * 60
+                        )
+                ),
+
+                new Shipment(
+                        "S2",
+                        new Coordinates(43.7420, 7.4300),
+                        10,
+                        new TimeWindow(
+                                8 * 60 * 60 + 40 * 60,
+                                9 * 60 * 60
+                        )
+                ),
+
+                new Shipment(
+                        "S3",
+                        new Coordinates(43.7440, 7.4350),
+                        15,
+                        new TimeWindow(
+                                9 * 60 * 60 + 20 * 60,
+                                9 * 60 * 60 + 40 * 60
+                        )
+                )
         );
 
-        PrimitiveRouteData data = PrimitiveRouteData.flatten(depot, shipments);
+        PrimitiveRouteData data =
+                PrimitiveRouteData.flatten(
+                        depot,
+                        shipments
+                );
 
+        /*
+         * Nodes:
+         *
+         * 0 = Depot
+         * 1 = S1
+         * 2 = S2
+         * 3 = S3
+         *
+         * Travel times are in seconds.
+         */
         long[][] syntheticTimeMatrix = {
-                {0L,  10L, 20L},
-                {10L,  0L,  5L},
-                {20L,  5L,  0L}
+
+                // Depot  S1    S2    S3
+                {    0L,  600L,  900L, 1200L }, // Depot
+                {  600L,    0L,  600L,  900L }, // S1
+                {  900L,  600L,    0L,  600L }, // S2
+                { 1200L,  900L,  600L,    0L }  // S3
         };
 
-        VRPSolverService solver = new VRPSolverService();
-        List<Coordinates> route = solver.solveOptimalRoute(data, syntheticTimeMatrix);
+        /*
+         * Time windows must follow the same node order:
+         *
+         * 0 -> Depot
+         * 1 -> S1
+         * 2 -> S2
+         * 3 -> S3
+         */
+        List<TimeWindow> timeWindows = List.of(
 
+                // Depot: 08:00 - 18:00
+                new TimeWindow(
+                        8 * 60 * 60,
+                        18 * 60 * 60
+                ),
+
+                // S1: 08:00 - 08:20
+                new TimeWindow(
+                        8 * 60 * 60,
+                        8 * 60 * 60 + 20 * 60
+                ),
+
+                // S2: 08:40 - 09:00
+                new TimeWindow(
+                        8 * 60 * 60 + 40 * 60,
+                        9 * 60 * 60
+                ),
+
+                // S3: 09:20 - 09:40
+                new TimeWindow(
+                        9 * 60 * 60 + 20 * 60,
+                        9 * 60 * 60 + 40 * 60
+                )
+        );
+
+        VRPSolverService solver =
+                new VRPSolverService();
+
+        List<Coordinates> route =
+                solver.solveOptimalRoute(
+                        data,
+                        syntheticTimeMatrix,
+                        timeWindows
+                );
+
+        /*
+         * Basic checks.
+         */
         assertNotNull(route);
-        assertEquals(4, route.size());
-        assertEquals(depot, route.get(0));
-        assertEquals(depot, route.get(route.size() - 1));
+
+        // Depot + S1 + S2 + S3 + Depot
+        assertEquals(5, route.size());
+
+        // Start at depot
+        assertEquals(
+                depot,
+                route.get(0)
+        );
+
+        // End at depot
+        assertEquals(
+                depot,
+                route.get(route.size() - 1)
+        );
+
+        /*
+         * The time windows force this order:
+         *
+         * Depot -> S1 -> S2 -> S3 -> Depot
+         */
+        assertEquals(
+                shipments.get(0).location(),
+                route.get(1)
+        );
+
+        assertEquals(
+                shipments.get(1).location(),
+                route.get(2)
+        );
+
+        assertEquals(
+                shipments.get(2).location(),
+                route.get(3)
+        );
     }
 }
