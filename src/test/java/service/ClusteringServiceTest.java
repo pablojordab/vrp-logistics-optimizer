@@ -47,5 +47,51 @@ class ClusteringServiceTest {
 
         int totalAssigned = barrios.stream().mapToInt(b -> b.assignedShipments.size()).sum();
         assertEquals(4, totalAssigned, "All 4 packages must be assigned to a neighborhood");
+
+        // Spatial correctness: the quadtree-backed nearest-cluster search must still
+        // group Madrid shipments together and Barcelona shipments together.
+        ClusteringService.Cluster madridCluster = clusterOf(barrios, "P1");
+        ClusteringService.Cluster barcelonaCluster = clusterOf(barrios, "P2");
+
+        assertEquals(madridCluster, clusterOf(barrios, "P3"), "P1 and P3 (Madrid) should share a cluster");
+        assertEquals(barcelonaCluster, clusterOf(barrios, "P4"), "P2 and P4 (Barcelona) should share a cluster");
+        assertNotEquals(madridCluster, barcelonaCluster, "Madrid and Barcelona should not be merged");
+    }
+
+    @Test
+    void testClusteringHoldsAtScaleWithSpatialIndex() {
+        TimeWindow dummyWindow = new TimeWindow(8, 18);
+        Coordinates depot = new Coordinates(43.7314, 7.4190);
+        Vehicle van = new Vehicle("VAN-BASE", 150, depot, dummyWindow);
+
+        java.util.Random rand = new java.util.Random(42);
+        List<Shipment> shipments = new java.util.ArrayList<>();
+        for (int i = 0; i < 500; i++) {
+            double lat = 43.7300 + (rand.nextDouble() * 0.0150);
+            double lon = 7.4100 + (rand.nextDouble() * 0.0250);
+            int weight = 10 + rand.nextInt(20);
+            shipments.add(new Shipment("PKG-" + i, new Coordinates(lat, lon), weight, dummyWindow));
+        }
+
+        AgentEstimatorService estimator = new AgentEstimatorService();
+        int requiredVans = estimator.estimateRequiredAgents(shipments, van);
+
+        ClusteringService clusterer = new ClusteringService();
+        List<ClusteringService.Cluster> clusters = clusterer.createClusters(shipments, requiredVans, van);
+
+        int totalAssigned = clusters.stream().mapToInt(c -> c.assignedShipments.size()).sum();
+        assertEquals(shipments.size(), totalAssigned, "Every shipment must end up in exactly one cluster");
+
+        for (ClusteringService.Cluster cluster : clusters) {
+            assertTrue(cluster.currentLoad <= van.capacity(),
+                    "A cluster exceeded van capacity: " + cluster.currentLoad);
+        }
+    }
+
+    private static ClusteringService.Cluster clusterOf(List<ClusteringService.Cluster> clusters, String shipmentId) {
+        return clusters.stream()
+                .filter(c -> c.assignedShipments.stream().anyMatch(s -> s.id().equals(shipmentId)))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Shipment not found in any cluster: " + shipmentId));
     }
 }
