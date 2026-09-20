@@ -19,13 +19,6 @@ class VRPSolverServiceTest {
         Coordinates depot =
                 new Coordinates(43.7384, 7.4246);
 
-        /*
-         * Three shipments with different time windows.
-         *
-         * S1 -> 08:00 - 08:20
-         * S2 -> 08:40 - 09:00
-         * S3 -> 09:20 - 09:40
-         */
         List<Shipment> shipments = List.of(
 
                 new Shipment(
@@ -65,16 +58,6 @@ class VRPSolverServiceTest {
                         shipments
                 );
 
-        /*
-         * Nodes:
-         *
-         * 0 = Depot
-         * 1 = S1
-         * 2 = S2
-         * 3 = S3
-         *
-         * Travel times are in seconds.
-         */
         long[][] syntheticTimeMatrix = {
 
                 // Depot  S1    S2    S3
@@ -84,14 +67,6 @@ class VRPSolverServiceTest {
                 { 1200L,  900L,  600L,    0L }  // S3
         };
 
-        /*
-         * Time windows must follow the same node order:
-         *
-         * 0 -> Depot
-         * 1 -> S1
-         * 2 -> S2
-         * 3 -> S3
-         */
         List<TimeWindow> timeWindows = List.of(
 
                 // Depot: 08:00 - 18:00
@@ -129,15 +104,10 @@ class VRPSolverServiceTest {
                         timeWindows
                 );
 
-        /*
-         * Basic checks.
-         */
         assertNotNull(route);
 
-        // Depot + S1 + S2 + S3 + Depot
         assertEquals(5, route.size());
 
-        // Start at depot
         assertEquals(
                 depot,
                 route.get(0)
@@ -149,11 +119,6 @@ class VRPSolverServiceTest {
                 route.get(route.size() - 1)
         );
 
-        /*
-         * The time windows force this order:
-         *
-         * Depot -> S1 -> S2 -> S3 -> Depot
-         */
         assertEquals(
                 shipments.get(0).location(),
                 route.get(1)

@@ -8,8 +8,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -21,18 +21,16 @@
     <header class="bg-slate-900 text-white p-6 shadow-md flex justify-between items-center">
         <div>
             <h1 class="text-2xl font-bold tracking-tight">VRP Spatial Visualizer</h1>
-            <p class="text-slate-400 text-sm mt-1">Render engine for Zero-Allocation routing matrices</p>
+            <p class="text-slate-400 text-sm mt-1">Multi-vehicle routing engine over OpenStreetMap & OR-Tools</p>
         </div>
         
-        <div class="flex items-center gap-4 bg-slate-800 p-3 rounded-lg border border-slate-700 shadow-inner">
-            <label for="fileInput" class="text-sm font-semibold text-slate-300">Upload GeoJSON route:</label>
-            <input type="file" id="fileInput" accept=".json, .geojson" class="block w-full text-sm text-slate-400
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-600 file:text-white
-                hover:file:bg-blue-500 transition cursor-pointer
-            "/>
+        <div class="flex items-center gap-3 bg-slate-800 p-2.5 px-4 rounded-lg border border-slate-700 shadow-inner">
+            <span class="text-sm font-medium text-slate-300">Dataset:</span>
+            <label class="cursor-pointer bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold py-2 px-4 rounded-full transition shadow">
+                Choose File
+                <input type="file" id="fileInput" accept=".json, .geojson" class="hidden"/>
+            </label>
+            <span id="fileNameDisplay" class="text-xs text-slate-400 max-w-[180px] truncate">No file chosen</span>
         </div>
     </header>
 
@@ -40,10 +38,16 @@
         <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden relative">
             <div id="map" class="w-full z-0"></div>
             
-            <div id="infoPanel" class="absolute top-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-xl border border-gray-200 z-[1000] hidden">
-                <h3 class="font-bold text-gray-900 mb-2 border-b pb-1">Route Details</h3>
-                <p class="text-sm text-gray-600">Vehicle ID: <span id="lblVehicle" class="font-semibold text-blue-600">-</span></p>
-                <p class="text-sm text-gray-600">Total Nodes: <span id="lblNodes" class="font-semibold text-blue-600">-</span></p>
+            <div id="infoPanel" class="absolute top-4 right-4 bg-white/95 backdrop-blur-sm p-4 rounded-lg shadow-xl border border-gray-200 z-[1000] hidden max-w-xs w-full">
+                <h3 class="font-bold text-gray-900 border-b pb-2 mb-3">Fleet Optimization Summary</h3>
+                <div class="space-y-1 text-sm text-gray-600 mb-3">
+                    <p class="flex justify-between"><span>Active Vehicles:</span> <strong id="lblVehiclesCount" class="text-gray-900">0</strong></p>
+                    <p class="flex justify-between"><span>Total Road Points:</span> <strong id="lblTotalPoints" class="text-gray-900">0</strong></p>
+                </div>
+                <div class="border-t pt-2">
+                    <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Fleet Details</h4>
+                    <div id="fleetLegend" class="space-y-1.5 max-h-48 overflow-y-auto text-xs"></div>
+                </div>
             </div>
         </div>
     </main>
@@ -51,17 +55,29 @@
     <script>
         const map = L.map('map').setView([43.7384, 7.4246], 14);
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-            subdomains: 'abcd',
-            maxZoom: 20
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ',
+            maxZoom: 19
         }).addTo(map);
 
-        let currentRouteLayer = null;
+        const VEHICLE_COLORS = [
+            "#2563eb",
+            "#dc2626",
+            "#16a34a",
+            "#9333ea",
+            "#ea580c",
+            "#0891b2",
+            "#4f46e5"
+        ];
+
+        let routesLayerGroup = L.layerGroup().addTo(map);
+        let markersLayerGroup = L.layerGroup().addTo(map);
 
         document.getElementById('fileInput').addEventListener('change', function(event) {
             const file = event.target.files[0];
             if (!file) return;
+
+            document.getElementById('fileNameDisplay').innerText = file.name;
 
             const reader = new FileReader();
             
@@ -69,36 +85,72 @@
                 try {
                     const geojsonData = JSON.parse(e.target.result);
                     
-                    if (currentRouteLayer) {
-                        map.removeLayer(currentRouteLayer);
+                    routesLayerGroup.clearLayers();
+                    markersLayerGroup.clearLayers();
+
+                    const features = geojsonData.type === "FeatureCollection" 
+                        ? geojsonData.features 
+                        : [geojsonData];
+
+                    let totalPoints = 0;
+                    const vehicleRoutes = [];
+
+                    features.forEach((feature, index) => {
+                        const color = VEHICLE_COLORS[index % VEHICLE_COLORS.length];
+                        const vehicleId = feature.properties?.vehicle || feature.properties?.vehicleId || `Van #${index + 1}`;
+
+                        if (feature.geometry?.type === "LineString") {
+                            const coords = feature.geometry.coordinates;
+                            totalPoints += coords.length;
+
+                            const line = L.geoJSON(feature, {
+                                style: { color: color, weight: 5, opacity: 0.85 }
+                            });
+                            routesLayerGroup.addLayer(line);
+
+                            if (coords.length > 0) {
+                                const startCoords = coords[0];
+                                const depotMarker = L.circleMarker([startCoords[1], startCoords[0]], {
+                                    radius: 7,
+                                    fillColor: "#0f172a",
+                                    color: "#ffffff",
+                                    weight: 2,
+                                    fillOpacity: 1
+                                }).bindPopup(`<b>Depot</b><br>Start point for ${vehicleId}`);
+                                markersLayerGroup.addLayer(depotMarker);
+                            }
+
+                            vehicleRoutes.push({ id: vehicleId, color: color, stops: coords.length });
+                        }
+                    });
+
+                    if (routesLayerGroup.getLayers().length > 0) {
+                        const bounds = L.featureGroup(routesLayerGroup.getLayers()).getBounds();
+                        map.fitBounds(bounds, { padding: [40, 40] });
                     }
 
-                    const routeStyle = {
-                        "color": "#2563eb", // Blue
-                        "weight": 5,
-                        "opacity": 0.8
-                    };
+                    document.getElementById('lblVehiclesCount').innerText = vehicleRoutes.length;
+                    document.getElementById('lblTotalPoints').innerText = totalPoints;
 
-                    currentRouteLayer = L.geoJSON(geojsonData, {
-                        style: routeStyle,
-                        onEachFeature: function (feature, layer) {
-                            if (feature.geometry.coordinates.length > 0) {
-                                const startCoords = feature.geometry.coordinates[0];
-                                // Remember GeoJSON is [lon, lat], Leaflet wants [lat, lon]
-                                L.marker([startCoords[1], startCoords[0]]).addTo(map)
-                                    .bindPopup("<b>Depot (Start)</b>");
-                            }
-                        }
-                    }).addTo(map);
-
-                    map.fitBounds(currentRouteLayer.getBounds(), { padding: [50, 50] });
+                    const legendContainer = document.getElementById('fleetLegend');
+                    legendContainer.innerHTML = '';
+                    vehicleRoutes.forEach(v => {
+                        const item = document.createElement('div');
+                        item.className = "flex items-center justify-between p-1.5 rounded bg-gray-50 border border-gray-100";
+                        item.innerHTML = `
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full" style="background-color: ${v.color}"></span>
+                                <span class="font-medium text-gray-700">${v.id}</span>
+                            </div>
+                            <span class="text-gray-500">${v.stops} pts</span>
+                        `;
+                        legendContainer.appendChild(item);
+                    });
 
                     document.getElementById('infoPanel').classList.remove('hidden');
-                    document.getElementById('lblVehicle').innerText = geojsonData.properties?.vehicle || 'Unknown';
-                    document.getElementById('lblNodes').innerText = geojsonData.geometry?.coordinates?.length || '0';
 
                 } catch (error) {
-                    alert("Error parsing JSON file. Please ensure it's a valid GeoJSON output from your VRP engine.");
+                    alert("Error parsing JSON file. Please ensure it is a valid GeoJSON output.");
                     console.error("JSON Parse Error:", error);
                 }
             };

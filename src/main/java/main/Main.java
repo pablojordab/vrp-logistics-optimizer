@@ -109,7 +109,7 @@ public class Main {
         Vehicle standardVan =
                 new Vehicle(
                         "VAN-BASE",
-                        150,
+                        20,
                         depot,
                         workingHours
                 );
