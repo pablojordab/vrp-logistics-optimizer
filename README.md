@@ -1,6 +1,6 @@
 # VRP Logistics Optimizer
 
-[![CI](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/pablojordab/vrp-logistics-optimizer/actions)
+[![CI](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml)
 ![Java 17](https://img.shields.io/badge/Java-17-orange)
 ![OR-Tools](https://img.shields.io/badge/Google-OR--Tools%209.10-blue)
 ![GraphHopper](https://img.shields.io/badge/Routing-GraphHopper%208.0-green)
