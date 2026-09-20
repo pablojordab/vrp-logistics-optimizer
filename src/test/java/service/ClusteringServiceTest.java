@@ -88,6 +88,32 @@ class ClusteringServiceTest {
         }
     }
 
+    @Test
+    void centroidRecentersToTheMeanOfAssignedShipments() {
+        TimeWindow dummyWindow = new TimeWindow(8, 18);
+        Coordinates depot = new Coordinates(0.0, 0.0);
+        Vehicle van = new Vehicle("V-001", 100, depot, dummyWindow);
+
+        // Highest demand first so it's the one used to seed the (only) cluster;
+        // both must still fit in the same single cluster (k = 1).
+        Shipment s1 = new Shipment("P1", new Coordinates(10.0, 20.0), 15, dummyWindow);
+        Shipment s2 = new Shipment("P2", new Coordinates(12.0, 24.0), 10, dummyWindow);
+
+        ClusteringService clusterer = new ClusteringService();
+        List<ClusteringService.Cluster> clusters = clusterer.createClusters(List.of(s1, s2), 1, van);
+
+        assertEquals(1, clusters.size(), "Both shipments should fit in the single seeded cluster");
+
+        ClusteringService.Cluster cluster = clusters.get(0);
+        double expectedLat = (10.0 + 12.0) / 2;
+        double expectedLon = (20.0 + 24.0) / 2;
+
+        assertEquals(expectedLat, cluster.centroid.lat(), 1e-9,
+                "Centroid latitude should be the mean of both shipment latitudes, not the seed's own location");
+        assertEquals(expectedLon, cluster.centroid.lon(), 1e-9,
+                "Centroid longitude should be the mean of both shipment longitudes, not the seed's own location");
+    }
+
     private static ClusteringService.Cluster clusterOf(List<ClusteringService.Cluster> clusters, String shipmentId) {
         return clusters.stream()
                 .filter(c -> c.assignedShipments.stream().anyMatch(s -> s.id().equals(shipmentId)))

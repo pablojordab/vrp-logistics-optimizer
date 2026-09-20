@@ -12,8 +12,10 @@ import service.CostMatrixCalculator;
 import service.GeoJsonSerializer;
 import service.VRPSolverService;
 
+import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -23,18 +25,72 @@ import java.util.Random;
 
 public class Main {
 
+    private static final String DEFAULT_OSM_PATH = "src/main/resources/monaco-latest.osm.pbf";
+    private static final String DEFAULT_CACHE_DIR = "graphhopper-cache";
+    private static final String DEFAULT_OUTPUT_FILE = "route_monaco_fleet.json";
+    private static final int DEFAULT_SHIPMENT_COUNT = 30;
+    private static final long DEFAULT_SEED = 42L;
+
     public static void main(String[] args) {
+        Path shipmentsCsv = (args.length > 0) ? Path.of(args[0]) : null;
+
+        runPipeline(
+                Path.of(DEFAULT_OSM_PATH),
+                Path.of(DEFAULT_CACHE_DIR),
+                DEFAULT_OUTPUT_FILE,
+                DEFAULT_SHIPMENT_COUNT,
+                DEFAULT_SEED,
+                shipmentsCsv
+        );
+    }
+
+    /**
+     * Convenience overload for callers (like existing tests) that always want
+     * randomly generated demand and never pass a shipments file.
+     */
+    static Map<String, List<Coordinates>> runPipeline(
+            Path osmPath,
+            Path cacheDir,
+            String outputFile,
+            int shipmentCount,
+            long seed) {
+
+        return runPipeline(osmPath, cacheDir, outputFile, shipmentCount, seed, null);
+    }
+
+    /**
+     * Runs the full pipeline end to end: boots GraphHopper, generates or loads
+     * demand, clusters shipments into zones, solves each zone's route respecting
+     * time windows, stitches the real road geometry, and writes the GeoJSON file.
+     *
+     * <p>Pulled out of {@code main} specifically so an integration test can
+     * exercise this exact sequence — including the CostMatrixCalculator /
+     * VRPSolverService seam that previously threw {@code IllegalArgumentException}
+     * on every zone whose size differed from the matrix pool capacity — without
+     * spawning a subprocess or parsing console output.</p>
+     *
+     * @param shipmentsCsv path to a CSV file of shipments (see
+     *                      {@link #loadShipmentsFromCsv}), or {@code null} to
+     *                      fall back to {@code shipmentCount} randomly
+     *                      generated shipments around Monaco.
+     * @return each vehicle's final road geometry, keyed by vehicle id, so
+     *         callers (tests included) can assert on the actual result rather
+     *         than just "it didn't throw".
+     */
+    static Map<String, List<Coordinates>> runPipeline(
+            Path osmPath,
+            Path cacheDir,
+            String outputFile,
+            int shipmentCount,
+            long seed,
+            Path shipmentsCsv) {
+
         System.out.println("==================================================");
         System.out.println("STARTING VRP ENTERPRISE LOGISTICS ENGINE");
         System.out.println("==================================================");
 
         System.out.println("[1/6] Booting GraphHopper engine (Monaco)...");
-        GraphHopperManager ghManager = new GraphHopperManager(
-                Path.of("src/main/resources/monaco-latest.osm.pbf"),
-                Path.of("graphhopper-cache")
-        );
-
-        System.out.println("[2/6] Generating logistics demand...");
+        GraphHopperManager ghManager = new GraphHopperManager(osmPath, cacheDir);
 
         /*
          * TimeWindow is expressed in seconds.
@@ -58,11 +114,20 @@ public class Main {
                         workingHours
                 );
 
-        List<Shipment> dailyShipments =
-                generateRandomShipmentsMonaco(
-                        30,
-                        workingHours
-                );
+        List<Shipment> dailyShipments;
+
+        if (shipmentsCsv != null) {
+            System.out.println("[2/6] Loading logistics demand from " + shipmentsCsv + "...");
+            dailyShipments = loadShipmentsFromCsv(shipmentsCsv, workingHours);
+        } else {
+            System.out.println("[2/6] Generating logistics demand...");
+            dailyShipments =
+                    generateRandomShipmentsMonaco(
+                            shipmentCount,
+                            workingHours,
+                            seed
+                    );
+        }
 
         System.out.println(
                 "      -> Created "
@@ -230,9 +295,6 @@ public class Main {
                         fleetRoutes
                 );
 
-        String outputFile =
-                "route_monaco_fleet.json";
-
         saveToFile(
                 outputFile,
                 geoJsonOutput
@@ -255,17 +317,84 @@ public class Main {
         System.out.println(
                 "=================================================="
         );
+
+        return fleetRoutes;
+    }
+
+    /**
+     * Loads shipments from a CSV file so the pipeline can be tried against a
+     * real or hand-crafted delivery list without touching any Java code.
+     *
+     * <p>Expected format, one shipment per row after a header row:</p>
+     * <pre>
+     * id,lat,lon,demand[,windowStartSeconds,windowEndSeconds]
+     * PKG-1,43.7320,7.4200,10
+     * PKG-2,43.7330,7.4210,15,28800,50400
+     * </pre>
+     *
+     * <p>The last two columns are optional per row; when omitted,
+     * {@code defaultWindow} is used for that shipment (so a whole file can
+     * skip them and rely on one working-hours window for everyone).</p>
+     */
+    private static List<Shipment> loadShipmentsFromCsv(Path csvPath, TimeWindow defaultWindow) {
+        List<Shipment> shipments = new ArrayList<>();
+
+        try (BufferedReader reader = Files.newBufferedReader(csvPath)) {
+            reader.readLine(); // skip header row
+
+            String line;
+            int lineNumber = 1;
+
+            while ((line = reader.readLine()) != null) {
+                lineNumber++;
+
+                if (line.isBlank()) {
+                    continue;
+                }
+
+                String[] cols = line.split(",");
+                if (cols.length < 4) {
+                    throw new IllegalArgumentException(
+                            "Line " + lineNumber + " in " + csvPath
+                                    + " needs at least 4 columns (id,lat,lon,demand): " + line
+                    );
+                }
+
+                String id = cols[0].trim();
+                double lat = Double.parseDouble(cols[1].trim());
+                double lon = Double.parseDouble(cols[2].trim());
+                int demand = Integer.parseInt(cols[3].trim());
+
+                TimeWindow window = defaultWindow;
+                if (cols.length >= 6) {
+                    int windowStart = Integer.parseInt(cols[4].trim());
+                    int windowEnd = Integer.parseInt(cols[5].trim());
+                    window = new TimeWindow(windowStart, windowEnd);
+                }
+
+                shipments.add(new Shipment(id, new Coordinates(lat, lon), demand, window));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to read shipments from " + csvPath, e);
+        }
+
+        if (shipments.isEmpty()) {
+            throw new IllegalArgumentException("No shipments found in " + csvPath);
+        }
+
+        return shipments;
     }
 
     private static List<Shipment> generateRandomShipmentsMonaco(
             int quantity,
-            TimeWindow window) {
+            TimeWindow window,
+            long seed) {
 
         List<Shipment> shipments =
                 new ArrayList<>();
 
         Random rand =
-                new Random(42);
+                new Random(seed);
 
         for (int i = 0; i < quantity; i++) {
 

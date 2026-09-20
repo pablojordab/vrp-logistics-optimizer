@@ -4,6 +4,8 @@ import domain.BoundingBox;
 import domain.Coordinates;
 import domain.Shipment;
 import domain.Vehicle;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import spatial.QuadNode;
 import spatial.Quadtree;
 
@@ -23,8 +25,22 @@ import java.util.List;
  * naive O(S * K) assignment scan into roughly O(S * log K) once K grows past
  * a handful of vehicles, since each query only visits the quadrants that
  * actually overlap the search box.</p>
+ *
+ * <p><b>Why the returned cluster count can exceed {@code k}:</b> {@code k}
+ * (normally {@link AgentEstimatorService}'s estimate) only seeds the initial
+ * clusters; it is a starting point, not a hard cap. If every existing
+ * cluster — including after a full scan — is already at capacity for a given
+ * shipment, this class opens one more "emergency" cluster rather than either
+ * dropping the shipment or overloading a vehicle past
+ * {@link Vehicle#capacity()}. This is intentional: a fleet that occasionally
+ * needs one extra van is a much safer failure mode than one that silently
+ * overloads a van. Each emergency cluster is logged as a {@code WARN} so the
+ * gap between the estimate and the actual zone count is visible, not
+ * silent.</p>
  */
 public class ClusteringService {
+
+    private static final Logger log = LoggerFactory.getLogger(ClusteringService.class);
 
     private static final double INITIAL_SEARCH_RADIUS_DEGREES = 0.02; // ~2 km at these latitudes
     private static final int MAX_RADIUS_DOUBLINGS = 10;
@@ -34,13 +50,51 @@ public class ClusteringService {
         public int currentLoad;
         public List<Shipment> assignedShipments;
 
+        /**
+         * Count of shipments actually added via {@link #addShipment}, used to
+         * compute the running mean centroid. Deliberately separate from
+         * {@code assignedShipments.size()} isn't necessary here (they're kept
+         * equal), but is named explicitly to make the incremental-mean math
+         * below easy to follow.
+         */
+        private int shipmentCount;
+
         public Cluster(Coordinates centroid) {
             this.centroid = centroid;
             this.currentLoad = 0;
             this.assignedShipments = new ArrayList<>();
+            this.shipmentCount = 0;
         }
 
+        /**
+         * Adds a shipment and recenters the centroid as the true running mean
+         * of every shipment location assigned so far — not the placeholder
+         * location passed to the constructor, which only exists so the
+         * cluster has *some* location to seed the quadtree with before its
+         * first real shipment arrives.
+         *
+         * <p><b>Note on the quadtree:</b> a cluster is indexed at whatever
+         * centroid it had at insertion time, and this class never re-indexes
+         * it as the centroid drifts. That never breaks correctness —
+         * {@code findNearestFeasibleCluster} always falls back to a full scan
+         * when the radius search comes up empty — but a cluster whose
+         * centroid has drifted far from its indexed position may occasionally
+         * be missed by the initial radius search and only found on that
+         * fallback scan, at some extra (still correct) computational cost.</p>
+         */
         public void addShipment(Shipment s) {
+            shipmentCount++;
+
+            if (shipmentCount == 1) {
+                // First real shipment: the centroid becomes exactly this
+                // shipment's location, discarding the constructor's placeholder.
+                this.centroid = s.location();
+            } else {
+                double newLat = centroid.lat() + (s.location().lat() - centroid.lat()) / shipmentCount;
+                double newLon = centroid.lon() + (s.location().lon() - centroid.lon()) / shipmentCount;
+                this.centroid = new Coordinates(newLat, newLon);
+            }
+
             this.assignedShipments.add(s);
             this.currentLoad += s.demand();
         }
@@ -73,6 +127,13 @@ public class ClusteringService {
                 emergencyCluster.addShipment(shipment);
                 clusters.add(emergencyCluster);
                 spatialIndex.insert(new QuadNode<>(emergencyCluster.centroid, emergencyCluster));
+
+                log.warn(
+                        "No existing cluster had capacity for shipment '{}' (demand={}); opened emergency cluster #{} "
+                                + "beyond the {} seeded from the vehicle estimate. This keeps every van under its "
+                                + "capacity limit at the cost of needing one more van than originally estimated.",
+                        shipment.id(), shipment.demand(), clusters.size(), k
+                );
             }
         }
 

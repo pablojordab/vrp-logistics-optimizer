@@ -1,0 +1,5 @@
+id,lat,lon,demand,windowStartSeconds,windowEndSeconds
+PKG-A,43.7320,7.4200,10,28800,64800
+PKG-B,43.7335,7.4215,15
+PKG-C,43.7305,7.4230,12
+PKG-D,43.7340,7.4180,8
