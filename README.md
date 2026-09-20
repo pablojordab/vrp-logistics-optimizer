@@ -6,7 +6,7 @@
 ![GraphHopper](https://img.shields.io/badge/Routing-GraphHopper%208.0-green)
 
 <p align="center">
-  <img src="docs/images/visualizer-preview.pg" alt="VRP Spatial Visualizer Preview" width="100%">
+  <img src="docs/images/visualizer-preview.png" alt="VRP Spatial Visualizer Preview" width="100%">
   <br>
   <em>Figure 1: Multi-vehicle CVRP solution with time windows over Monaco's road network (5 active vans, 1,109 stitched road geometry points via GraphHopper, solved with Google OR-Tools).</em>
 </p>
