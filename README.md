@@ -1,10 +1,15 @@
 # VRP Logistics Optimizer
 
-[![CI](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml)
-[![Java 17](https://img.shields.io/badge/Java-17%2B-ED8B00?style=flat&logo=openjdk&logoColor=white)](https://www.oracle.com/java/)
-[![Maven](https://img.shields.io/badge/Build-Maven-C71A36?style=flat&logo=apachemaven&logoColor=white)](https://maven.apache.org/)
-[![OR-Tools](https://img.shields.io/badge/Solver-Google%20OR--Tools-4285F4?style=flat&logo=google&logoColor=white)](https://developers.google.com/optimization)
-[![GraphHopper](https://img.shields.io/badge/Routing-GraphHopper%20Core-00B0FF?style=flat)](https://www.graphhopper.com/)
+[![CI](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/pablojordab/vrp-logistics-optimizer/actions)
+![Java 17](https://img.shields.io/badge/Java-17-orange)
+![OR-Tools](https://img.shields.io/badge/Google-OR--Tools%209.10-blue)
+![GraphHopper](https://img.shields.io/badge/Routing-GraphHopper%208.0-green)
+
+<p align="center">
+  <img src="docs/images/visualizer-preview.png" alt="VRP Spatial Visualizer Preview" width="100%">
+  <br>
+  <em>Figure 1: Multi-vehicle CVRP solution with time windows over Monaco's real road network (4 active vans, OSM topography via GraphHopper, solved with Google OR-Tools).</em>
+</p>
 
 A Java 17 backend that solves a single-depot **Capacitated Vehicle Routing Problem (CVRP)** using a *cluster-first, route-second* strategy: shipments are grouped into capacity-feasible zones with a custom greedy heuristic, and each zone's stop order is then optimized with **Google OR-Tools**. Travel times come from a **real road network** (OpenStreetMap data for Monaco, via GraphHopper Core), not straight-line approximations. Output is a GeoJSON file you can drop straight into a map.
 
