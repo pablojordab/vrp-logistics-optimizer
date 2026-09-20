@@ -202,17 +202,6 @@ public class Quadtree<T> {
         );
     }
 
-    /*
-     * ============================================================
-     * NEAREST NEIGHBOUR
-     * ============================================================
-     */
-
-    /**
-     * Finds the closest node to the given coordinates.
-     *
-     * Returns null when the tree contains no points.
-     */
     public QuadNode<T> nearest(Coordinates target) {
 
         if (target == null) {
@@ -238,12 +227,6 @@ public class Quadtree<T> {
             Coordinates target,
             NearestResult<T> result) {
 
-        /*
-         * If the minimum possible distance from the target
-         * to this entire quadrant is already worse than our
-         * current best candidate, we can completely ignore
-         * this quadrant.
-         */
         double minDistance =
                 distanceSquaredToBoundary(
                         target,
@@ -254,9 +237,6 @@ public class Quadtree<T> {
             return;
         }
 
-        /*
-         * Check points stored in this node.
-         */
         for (QuadNode<T> point : node.points) {
 
             double distance =
@@ -275,11 +255,6 @@ public class Quadtree<T> {
             return;
         }
 
-        /*
-         * Search the quadrant containing the target first.
-         * This gives us a good initial candidate early and
-         * improves pruning of the remaining quadrants.
-         */
         Quadtree<T>[] children =
                 node.orderedChildren(target);
 
@@ -354,16 +329,6 @@ public class Quadtree<T> {
         };
     }
 
-    /**
-     * Finds the closest node satisfying the supplied predicate.
-     *
-     * This is the method we will use for logistics:
-     *
-     *     nearestFeasible(
-     *         shipment.location(),
-     *         cluster -> cluster.currentLoad + demand <= capacity
-     *     )
-     */
     public QuadNode<T> nearestFeasible(
             Coordinates target,
             java.util.function.Predicate<T> predicate) {
@@ -409,9 +374,6 @@ public class Quadtree<T> {
             return;
         }
 
-        /*
-         * Check points stored in this quadrant.
-         */
         for (QuadNode<T> point : node.points) {
 
             T data = point.getData();
@@ -453,12 +415,6 @@ public class Quadtree<T> {
         }
     }
 
-    /**
-     * Calculates the minimum squared Euclidean distance
-     * between a point and a bounding box.
-     *
-     * If the point lies inside the box, the distance is 0.
-     */
     private double distanceSquaredToBoundary(
             Coordinates point,
             BoundingBox box) {

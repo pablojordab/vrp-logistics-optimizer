@@ -6,14 +6,21 @@ import routing.GraphHopperManager;
 
 public class CostMatrixCalculator {
 
-    private final long[][] matrixPool;
     private final int maxNodes;
 
     public CostMatrixCalculator(int maxNodesPerCluster) {
         this.maxNodes = maxNodesPerCluster;
-        this.matrixPool = new long[maxNodesPerCluster][maxNodesPerCluster];
     }
 
+    /**
+     * Builds a travel-time matrix sized exactly to {@code data.size}.
+     *
+     * <p>{@code maxNodesPerCluster} is only an upper bound used to fail fast
+     * on oversized zones; it must never determine the returned matrix's
+     * dimensions, or callers (like {@code VRPSolverService}) that validate
+     * {@code timeMatrix.length == data.size} will reject every zone whose
+     * size differs from {@code maxNodesPerCluster}.</p>
+     */
     public long[][] calculateTimeMatrix(PrimitiveRouteData data, GraphHopperManager ghManager) {
         int n = data.size;
 
@@ -21,13 +28,15 @@ public class CostMatrixCalculator {
             throw new IllegalArgumentException("Data size (" + n + ") exceeds matrix pool capacity (" + maxNodes + ")");
         }
 
+        long[][] matrix = new long[n][n];
+
         for (int i = 0; i < n; i++) {
             double fromLat = data.latitudes[i];
             double fromLon = data.longitudes[i];
 
             for (int j = 0; j < n; j++) {
                 if (i == j) {
-                    matrixPool[i][j] = 0L;
+                    matrix[i][j] = 0L;
                 } else {
                     try {
                         RouteMetrics metrics = ghManager.getRoute(
@@ -36,13 +45,13 @@ public class CostMatrixCalculator {
                                 data.latitudes[j],
                                 data.longitudes[j]
                         );
-                        matrixPool[i][j] = metrics.timeSeconds();
+                        matrix[i][j] = metrics.timeSeconds();
                     } catch (Exception e) {
-                        matrixPool[i][j] = 999999L;
+                        matrix[i][j] = 999999L;
                     }
                 }
             }
         }
-        return matrixPool;
+        return matrix;
     }
 }
