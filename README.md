@@ -8,7 +8,7 @@
 <p align="center">
   <img src="docs/images/visualizer-preview.png" alt="VRP Spatial Visualizer Preview" width="100%">
   <br>
-  <em>Figure 1: Multi-vehicle CVRP solution with time windows over Monaco's real road network (4 active vans, OSM topography via GraphHopper, solved with Google OR-Tools).</em>
+  <em>Figure 1: Multi-vehicle CVRP solution with time windows over Monaco's road network (5 active vans, 1,109 stitched road geometry points via GraphHopper, solved with Google OR-Tools).</em>
 </p>
 
 A Java 17 backend that solves a single-depot **Capacitated Vehicle Routing Problem (CVRP)** using a *cluster-first, route-second* strategy: shipments are grouped into capacity-feasible zones with a custom greedy heuristic, and each zone's stop order is then optimized with **Google OR-Tools**. Travel times come from a **real road network** (OpenStreetMap data for Monaco, via GraphHopper Core), not straight-line approximations. Output is a GeoJSON file you can drop straight into a map.
