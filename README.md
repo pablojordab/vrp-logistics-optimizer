@@ -1,12 +1,13 @@
 # VRP Logistics Optimizer
 
 [![CI](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml/badge.svg)](https://github.com/pablojordab/vrp-logistics-optimizer/actions/workflows/ci.yml)
+[![Live Demo](https://img.shields.io/badge/Demo-Live%20Visualizer-brightgreen)](https://pablojordab.github.io/vrp-logistics-optimizer/frontend/)
 ![Java 17](https://img.shields.io/badge/Java-17-orange)
 ![OR-Tools](https://img.shields.io/badge/Google-OR--Tools%209.10-blue)
 ![GraphHopper](https://img.shields.io/badge/Routing-GraphHopper%208.0-green)
 
 <p align="center">
-  <img src="docs/images/visualizer-preview.png" alt="VRP Spatial Visualizer Preview" width="100%">
+  <img src="docs/images/visualizer-preview.png?v=2" alt="VRP Spatial Visualizer Preview" width="100%">
   <br>
   <em>Figure 1: Multi-vehicle CVRP solution with time windows over Monaco's road network (5 active vans, 1,109 stitched road geometry points via GraphHopper, solved with Google OR-Tools).</em>
 </p>

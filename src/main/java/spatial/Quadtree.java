@@ -6,17 +6,6 @@ import domain.Coordinates;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * A point-region quadtree over {@link Coordinates}, used for spatial range
- * queries and nearest-neighbor lookups.
- *
- * <p>{@link #nearestFeasible} is wired into {@code service.ClusteringService}
- * to find the nearest cluster with spare capacity directly, via exact
- * branch-and-bound pruning, rather than scanning a hand-tuned growing search
- * box. {@link #query(BoundingBox)} and {@link #nearest} have no caller yet —
- * see README's Known Limitations for using either to prune candidate pairs
- * before cost-matrix computation, the next planned use of this class.</p>
- */
 public class Quadtree<T> {
 
     private static final int CAPACITY = 4;
