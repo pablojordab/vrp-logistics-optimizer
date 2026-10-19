@@ -1,10 +1,22 @@
 package spatial;
 
 import domain.BoundingBox;
+import domain.Coordinates;
 
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A point-region quadtree over {@link Coordinates}, used for spatial range
+ * queries and nearest-neighbor lookups.
+ *
+ * <p>{@link #nearestFeasible} is wired into {@code service.ClusteringService}
+ * to find the nearest cluster with spare capacity directly, via exact
+ * branch-and-bound pruning, rather than scanning a hand-tuned growing search
+ * box. {@link #query(BoundingBox)} and {@link #nearest} have no caller yet —
+ * see README's Known Limitations for using either to prune candidate pairs
+ * before cost-matrix computation, the next planned use of this class.</p>
+ */
 public class Quadtree<T> {
 
     private static final int CAPACITY = 4;
@@ -38,36 +50,20 @@ public class Quadtree<T> {
             return false;
         }
 
-        /*
-         * Leaf with available capacity.
-         */
         if (!divided && points.size() < CAPACITY) {
             points.add(node);
             return true;
         }
 
-        /*
-         * Maximum depth reached.
-         *
-         * We deliberately allow the bucket to grow here.
-         * This prevents pathological recursion with very close
-         * or identical coordinates.
-         */
         if (!divided && depth >= MAX_DEPTH) {
             points.add(node);
             return true;
         }
 
-        /*
-         * Subdivide the current region.
-         */
         if (!divided) {
             subdivide();
         }
 
-        /*
-         * Insert into exactly ONE child.
-         */
         return insertIntoChild(node);
     }
 
@@ -82,12 +78,6 @@ public class Quadtree<T> {
         double midLon =
                 (boundary.minLon() + boundary.maxLon()) / 2.0;
 
-        /*
-         * We use >= for the north/east side.
-         *
-         * This gives every point exactly one destination,
-         * including points located exactly on a subdivision line.
-         */
         if (lat >= midLat) {
 
             if (lon < midLon) {
@@ -122,9 +112,6 @@ public class Quadtree<T> {
 
         int nextDepth = depth + 1;
 
-        /*
-         * North-West
-         */
         northWest =
                 new Quadtree<>(
                         new BoundingBox(
@@ -136,9 +123,6 @@ public class Quadtree<T> {
                         nextDepth
                 );
 
-        /*
-         * North-East
-         */
         northEast =
                 new Quadtree<>(
                         new BoundingBox(
@@ -150,9 +134,6 @@ public class Quadtree<T> {
                         nextDepth
                 );
 
-        /*
-         * South-West
-         */
         southWest =
                 new Quadtree<>(
                         new BoundingBox(
@@ -164,9 +145,6 @@ public class Quadtree<T> {
                         nextDepth
                 );
 
-        /*
-         * South-East
-         */
         southEast =
                 new Quadtree<>(
                         new BoundingBox(
@@ -180,12 +158,6 @@ public class Quadtree<T> {
 
         divided = true;
 
-        /*
-         * Reinsert existing points.
-         *
-         * IMPORTANT:
-         * Each point is inserted into exactly ONE child.
-         */
         List<QuadNode<T>> existingPoints =
                 new ArrayList<>(points);
 
@@ -212,19 +184,10 @@ public class Quadtree<T> {
             );
         }
 
-        /*
-         * No intersection -> entire subtree can be ignored.
-         */
         if (!boundary.intersects(range)) {
             return found;
         }
 
-        /*
-         * Check points stored at this node.
-         *
-         * Normally this happens only for leaves, or when
-         * MAX_DEPTH was reached.
-         */
         for (QuadNode<T> node : points) {
 
             if (range.contains(node.getPoint())) {
@@ -232,9 +195,6 @@ public class Quadtree<T> {
             }
         }
 
-        /*
-         * Search children only if this node has been subdivided.
-         */
         if (divided) {
 
             northWest.query(range, found);
@@ -246,13 +206,255 @@ public class Quadtree<T> {
         return found;
     }
 
-    /**
-     * Convenience overload.
-     */
     public List<QuadNode<T>> query(BoundingBox range) {
         return query(
                 range,
                 new ArrayList<>()
         );
+    }
+
+    public QuadNode<T> nearest(Coordinates target) {
+
+        if (target == null) {
+            throw new IllegalArgumentException(
+                    "Target coordinates cannot be null."
+            );
+        }
+
+        NearestResult<T> result =
+                new NearestResult<>();
+
+        nearestRecursive(
+                this,
+                target,
+                result
+        );
+
+        return result.node;
+    }
+
+    private void nearestRecursive(
+            Quadtree<T> node,
+            Coordinates target,
+            NearestResult<T> result) {
+
+        double minDistance =
+                distanceSquaredToBoundary(
+                        target,
+                        node.boundary
+                );
+
+        if (minDistance >= result.bestDistance) {
+            return;
+        }
+
+        for (QuadNode<T> point : node.points) {
+
+            double distance =
+                    target.distanceSquaredTo(
+                            point.getPoint()
+                    );
+
+            if (distance < result.bestDistance) {
+
+                result.bestDistance = distance;
+                result.node = point;
+            }
+        }
+
+        if (!node.divided) {
+            return;
+        }
+
+        Quadtree<T>[] children =
+                node.orderedChildren(target);
+
+        for (Quadtree<T> child : children) {
+
+            if (child != null) {
+
+                nearestRecursive(
+                        child,
+                        target,
+                        result
+                );
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Quadtree<T>[] orderedChildren(
+            Coordinates target) {
+
+        double midLat =
+                (boundary.minLat() + boundary.maxLat()) / 2.0;
+
+        double midLon =
+                (boundary.minLon() + boundary.maxLon()) / 2.0;
+
+        boolean north =
+                target.lat() >= midLat;
+
+        boolean east =
+                target.lon() >= midLon;
+
+        Quadtree<T> first;
+        Quadtree<T> second;
+        Quadtree<T> third;
+        Quadtree<T> fourth;
+
+        if (north && east) {
+
+            first = northEast;
+            second = northWest;
+            third = southEast;
+            fourth = southWest;
+
+        } else if (north) {
+
+            first = northWest;
+            second = northEast;
+            third = southWest;
+            fourth = southEast;
+
+        } else if (east) {
+
+            first = southEast;
+            second = southWest;
+            third = northEast;
+            fourth = northWest;
+
+        } else {
+
+            first = southWest;
+            second = southEast;
+            third = northWest;
+            fourth = northEast;
+        }
+
+        return new Quadtree[]{
+                first,
+                second,
+                third,
+                fourth
+        };
+    }
+
+    public QuadNode<T> nearestFeasible(
+            Coordinates target,
+            java.util.function.Predicate<T> predicate) {
+
+        if (target == null) {
+            throw new IllegalArgumentException(
+                    "Target coordinates cannot be null."
+            );
+        }
+
+        if (predicate == null) {
+            throw new IllegalArgumentException(
+                    "Predicate cannot be null."
+            );
+        }
+
+        NearestResult<T> result =
+                new NearestResult<>();
+
+        nearestFeasibleRecursive(
+                this,
+                target,
+                predicate,
+                result
+        );
+
+        return result.node;
+    }
+
+    private void nearestFeasibleRecursive(
+            Quadtree<T> node,
+            Coordinates target,
+            java.util.function.Predicate<T> predicate,
+            NearestResult<T> result) {
+
+        double minDistance =
+                distanceSquaredToBoundary(
+                        target,
+                        node.boundary
+                );
+
+        if (minDistance >= result.bestDistance) {
+            return;
+        }
+
+        for (QuadNode<T> point : node.points) {
+
+            T data = point.getData();
+
+            if (!predicate.test(data)) {
+                continue;
+            }
+
+            double distance =
+                    target.distanceSquaredTo(
+                            point.getPoint()
+                    );
+
+            if (distance < result.bestDistance) {
+
+                result.bestDistance = distance;
+                result.node = point;
+            }
+        }
+
+        if (!node.divided) {
+            return;
+        }
+
+        Quadtree<T>[] children =
+                node.orderedChildren(target);
+
+        for (Quadtree<T> child : children) {
+
+            if (child != null) {
+
+                nearestFeasibleRecursive(
+                        child,
+                        target,
+                        predicate,
+                        result
+                );
+            }
+        }
+    }
+
+    private double distanceSquaredToBoundary(
+            Coordinates point,
+            BoundingBox box) {
+
+        double dx = 0.0;
+        double dy = 0.0;
+
+        if (point.lon() < box.minLon()) {
+            dx = box.minLon() - point.lon();
+
+        } else if (point.lon() > box.maxLon()) {
+            dx = point.lon() - box.maxLon();
+        }
+
+        if (point.lat() < box.minLat()) {
+            dy = box.minLat() - point.lat();
+
+        } else if (point.lat() > box.maxLat()) {
+            dy = point.lat() - box.maxLat();
+        }
+
+        return dx * dx + dy * dy;
+    }
+
+    private static class NearestResult<T> {
+
+        private QuadNode<T> node = null;
+
+        private double bestDistance =
+                Double.POSITIVE_INFINITY;
     }
 }
